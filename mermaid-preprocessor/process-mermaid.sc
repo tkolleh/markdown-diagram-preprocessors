@@ -200,10 +200,14 @@ val processed = mermaidBlocks.sortBy(-_.absoluteOffset).foldLeft(input) { (text,
 
   val svgContent = renderMermaidToString(block.content, config.verbose.value)
 
-  val replacement =
+  val core =
     s"""<div class="mermaid-diagram" style="margin: 2em 0; display: flex; justify-content: center;">
        |$svgContent
        |</div>""".stripMargin
+
+  // AsciiDoc escapes inline HTML; a passthrough block emits it verbatim. Markdown needs none.
+  val replacement =
+    if (config.format == "adoc") s"++++\n$core\n++++" else core
 
   // Reconstruct the full source block (with its fence) to replace it exactly.
   val quoted = java.util.regex.Pattern.quote(block.content)
