@@ -20,28 +20,45 @@ import scala.util.{Try, Using}
 import sys.process._
 
 case class Config(
-  @arg(short = 'i', doc = "Input markdown file path (default: stdin)")
+  @arg(short = 'i', doc = "Input markup file path (default: stdin)")
   inputFile: Option[String] = None,
   @arg(short = 'o', doc = "Output file path (default: stdout)")
   outputFile: Option[String] = None,
+  @arg(short = 'f', doc = "Markup format: md (default) or adoc")
+  format: String = "md",
   @arg(short = 'v', doc = "Verbose mode")
   verbose: Flag = Flag()
 )
 
+// A fence spec describes how to locate one kind of diagram block in one markup
+// format. `detectRegex` is the rg multiline pattern (group 1 = inner content);
+// `extractRegex` re-derives that content from the file text precisely.
+final case class FenceSpec(label: String, detectRegex: String, extractRegex: String)
+
 case class MermaidCodeBlock(
   content: String,
   lineNumber: Int,
-  absoluteOffset: Int,
-  matchStart: Int,
-  matchEnd: Int
+  absoluteOffset: Int
 )
 
-def findMermaidBlocks(filePath: String, verbose: Boolean = false): List[MermaidCodeBlock] = {
+// Markdown: ```mermaid ... ```
+// AsciiDoc: [mermaid]\n----...----  and  [source,mermaid]\n----...----  (both forms)
+def fenceSpecs(format: String): List[FenceSpec] = format match {
+  case "adoc" => List(
+    FenceSpec("[mermaid]",        """\[mermaid\]\n----\n((?s).*?)\n----""",          """(?s)\[mermaid\]\n----\n(.*?)\n----"""),
+    FenceSpec("[source,mermaid]", """\[source,\s*mermaid\]\n----\n((?s).*?)\n----""", """(?s)\[source,\s*mermaid\]\n----\n(.*?)\n----""")
+  )
+  case _ => List(
+    FenceSpec("```mermaid", """```mermaid\n((?s).*?)\n```""", """(?s)```mermaid\n(.*?)\n```""")
+  )
+}
+
+def findMermaidBlocks(filePath: String, spec: FenceSpec, verbose: Boolean): List[MermaidCodeBlock] = {
   val cmd = Seq(
     "rg",
     "--multiline",
     "--json",
-    """```mermaid\n((?s).*?)\n```""",
+    spec.detectRegex,
     filePath
   )
 
@@ -72,19 +89,15 @@ def findMermaidBlocks(filePath: String, verbose: Boolean = false): List[MermaidC
         else {
           val lineNumMatch  = """"line_number":(\d+)""".r.findFirstMatchIn(line)
           val absOffMatch   = """"absolute_offset":(\d+)""".r.findFirstMatchIn(line)
-          val startMatch    = """"start":(\d+)""".r.findFirstMatchIn(line)
-          val endMatch      = """"end":(\d+)""".r.findFirstMatchIn(line)
 
           for {
             lineNum <- lineNumMatch.map(_.group(1).toInt)
             absOff  <- absOffMatch.map(_.group(1).toInt)
-            start   <- startMatch.map(_.group(1).toInt)
-            end     <- endMatch.map(_.group(1).toInt)
           } yield {
             // Read the actual file content to extract the mermaid block precisely
             // ripgrep JSON-encodes the text field; read from file directly instead
             val fileContent = os.read(os.Path(filePath))
-            val blockPattern = """(?s)```mermaid\n(.*?)\n```""".r
+            val blockPattern = spec.extractRegex.r
             val allBlocks = blockPattern.findAllMatchIn(fileContent).toList
 
             // Match by line number: find the block whose start offset is nearest to absOff
@@ -92,14 +105,14 @@ def findMermaidBlocks(filePath: String, verbose: Boolean = false): List[MermaidC
               math.abs(fileContent.take(m.start).count(_ == '\n') + 1 - lineNum)
             }.map(_.group(1)).getOrElse("")
 
-            MermaidCodeBlock(matchedContent, lineNum, absOff, start, end)
+            MermaidCodeBlock(matchedContent, lineNum, absOff)
           }
         }
       }.toOption.flatten
     }
     .toList
 
-  if (verbose) System.err.println(s"Found ${blocks.length} mermaid code blocks")
+  if (verbose) System.err.println(s"Found ${blocks.length} ${spec.label} blocks")
   blocks
 }
 
@@ -167,7 +180,8 @@ val inputPath = config.inputFile match {
     path
   case None =>
     if (config.verbose.value) System.err.println("Reading from stdin, creating temp file")
-    val tempFile = Files.createTempFile("mermaid-markdown-", ".md").toFile
+    val suffix   = if (config.format == "adoc") ".adoc" else ".md"
+    val tempFile = Files.createTempFile("mermaid-markup-", suffix).toFile
     tempFile.deleteOnExit()
     Using(scala.io.Source.fromInputStream(System.in)) { source =>
       os.write.over(os.Path(tempFile.getAbsolutePath), source.mkString)
@@ -176,7 +190,8 @@ val inputPath = config.inputFile match {
 }
 
 val input         = os.read(os.Path(inputPath))
-val mermaidBlocks = findMermaidBlocks(inputPath, config.verbose.value)
+val specs         = fenceSpecs(config.format)
+val mermaidBlocks = specs.flatMap(spec => findMermaidBlocks(inputPath, spec, config.verbose.value))
 
 // Replace in reverse offset order so earlier positions stay valid as we mutate
 val processed = mermaidBlocks.sortBy(-_.absoluteOffset).foldLeft(input) { (text, block) =>
@@ -190,7 +205,11 @@ val processed = mermaidBlocks.sortBy(-_.absoluteOffset).foldLeft(input) { (text,
        |$svgContent
        |</div>""".stripMargin
 
-  val blockPattern = s"```mermaid\n${java.util.regex.Pattern.quote(block.content)}\n```"
+  // Reconstruct the full source block (with its fence) to replace it exactly.
+  val quoted = java.util.regex.Pattern.quote(block.content)
+  val blockPattern =
+    if (config.format == "adoc") s"""\\[(?:source,\\s*)?mermaid\\]\n----\n$quoted\n----"""
+    else s"```mermaid\n$quoted\n```"
   text.replaceFirst(blockPattern, java.util.regex.Matcher.quoteReplacement(replacement))
 }
 

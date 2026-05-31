@@ -1,0 +1,30 @@
+= AsciiDoc Mixed
+
+Intro paragraph that should pass through verbatim.
+
+[d2]
+----
+x -> y
+y -> z
+----
+
+Some prose between diagrams.
+
+[source,d2]
+----
+a -> b
+----
+
+[mermaid]
+----
+graph TD
+  A --> B
+----
+
+[source,mermaid]
+----
+graph LR
+  C --> D
+----
+
+Trailing text with a +literal+ span that must not be touched.
