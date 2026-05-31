@@ -1,0 +1,20 @@
+# Scala CLI / build outputs (regenerated on every run)
+.scala-build/
+.bsp/
+.bloop/
+
+# Metals / IDE state
+.metals/
+.idea/
+.vscode/
+
+# Agent / local tooling config (machine-specific, not for publication)
+.serena/
+.claude/
+.mcp.json
+
+# Local working notes
+SESSION_SUMMARIES.md
+
+# macOS
+.DS_Store
