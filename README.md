@@ -1,21 +1,8 @@
-# markdown-diagram-preprocessors
+# Markup Diagram Pre-processors
 
-Render fenced `d2` and `mermaid` code blocks in Markdown into inline SVG, so
-diagrams show up rendered in [Marked 2](https://marked2app.com/) (or any tool
-that accepts a custom Markdown preprocessor).
+Render `d2` and `mermaid` labeled code blocks in markup into inline SVG, so diagrams show up rendered in [Marked 2](https://marked2app.com/) (or any tool that accepts a custom markup preprocessor).
 
-Each preprocessor scans a Markdown document for diagram code fences, shells out
-to the corresponding renderer (`d2` or `mmdc`), and replaces each fence with a
-centered `<div>` containing the generated SVG. The original Markdown is left
-untouched everywhere else.
-
-## Why this exists
-
-Marked 2 lets you register a custom preprocessor, but runs it in a restricted
-GUI environment where `scala-cli` and the renderers may not be on `PATH`. Each
-script prepends the common Homebrew/system locations to `PATH` in its shebang
-wrapper so it works when launched from the app, not just an interactive shell.
-
+Each preprocessor scans a markup document for diagram code fences, shells out to the corresponding renderer (`d2` or `mmdc`), and replaces each fence with a centered `<div>` containing the generated SVG. The original markup file is left untouched everywhere else. Each script prepends the common Homebrew/system locations needed to run to `PATH` in its shebang wrapper so it works when launched from markup preview apps such as [Marked 2](https://marked2app.com/), not just an interactive shell.
 ## Components
 
 | File | Purpose |
@@ -24,8 +11,8 @@ wrapper so it works when launched from the app, not just an interactive shell.
 | `markdown-d2-preprocessor/process-d2-markdown.sc` | Replaces ` ```d2 ` blocks with SVG rendered by `d2`. |
 | `markdown-mermaid-preprocessor/process-mermaid-markdown.sc` | Replaces ` ```mermaid ` blocks with SVG rendered by `mmdc`, with `<script>` tags and XML declarations stripped from the output. |
 
-The two preprocessors can also run standalone; the orchestrator simply chains
-them so a single document can contain both diagram types.
+
+> Pre-processors can also run standalone; the orchestrator simply chains them so a single document can contain both diagram types.
 
 ## Prerequisites
 
@@ -65,7 +52,7 @@ Run a single preprocessor on its own:
 
 | Flag | Meaning |
 | --- | --- |
-| `-i <file>` | Input Markdown file (default: stdin) |
+| `-i <file>` | Input markup file (default: stdin) |
 | `-o <file>` | Output file (default: stdout) |
 | `-v` | Verbose logging to stderr |
 
