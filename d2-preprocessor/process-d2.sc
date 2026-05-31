@@ -191,10 +191,14 @@ val processed = blocks.sortBy(-_.absoluteOffset).foldLeft(input) { (text, block)
 
   val svgContent = renderD2ToString(block.content, config.verbose.value)
 
-  val replacement =
+  val core =
     s"""<div class="d2-diagram" style="margin: 2em 0; display: flex; justify-content: center;">
        |$svgContent
        |</div>""".stripMargin
+
+  // AsciiDoc escapes inline HTML; a passthrough block emits it verbatim. Markdown needs none.
+  val replacement =
+    if (config.format == "adoc") s"++++\n$core\n++++" else core
 
   // Reconstruct the full source block (with its fence) to replace it exactly.
   val quoted = java.util.regex.Pattern.quote(block.content)

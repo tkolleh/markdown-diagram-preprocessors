@@ -77,6 +77,17 @@ assert_eq "two d2 diagrams"                   2 "$(count 'class="d2-diagram"' "$
 assert_eq "two mermaid diagrams"              2 "$(count 'class="mermaid-diagram"' "$TMP/adoc-orch.html")"
 assert_eq "zero leftover fences"              0 "$(count_re '^\[(source,)?\s*(d2|mermaid)\]' "$TMP/adoc-orch.html")"
 
+echo "== Full chain: AsciiDoc through asciidoctor =="
+if command -v asciidoctor >/dev/null 2>&1; then
+  "$ORCH" -i "$FIXTURES/asciidoc-mixed.adoc" -f adoc 2>/dev/null \
+    | asciidoctor --backend html5 -o - - 2>/dev/null >"$TMP/adoc-final.html"
+  assert_eq "d2 divs survive asciidoctor"      2 "$(count 'class="d2-diagram"' "$TMP/adoc-final.html")"
+  assert_eq "mermaid divs survive asciidoctor" 2 "$(count 'class="mermaid-diagram"' "$TMP/adoc-final.html")"
+  assert_eq "real svg survives passthrough"    1 "$([ "$(count '<svg' "$TMP/adoc-final.html")" -ge 4 ] && echo 1 || echo 0)"
+else
+  printf '  SKIP asciidoctor not on PATH — full-chain passthrough guard skipped\n'
+fi
+
 echo "== Passthrough invariant: no-diagram doc unchanged =="
 "$ORCH" -i "$FIXTURES/no-diagrams.md" >"$TMP/passthrough.html" 2>/dev/null
 if diff -q "$FIXTURES/no-diagrams.md" "$TMP/passthrough.html" >/dev/null 2>&1; then
